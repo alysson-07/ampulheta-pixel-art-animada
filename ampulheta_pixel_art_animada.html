@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ampulheta Pixel Art</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* Garante renderização nítida sem borrão em qualquer escala */
+    canvas {
+      image-rendering: -moz-crisp-edges;
+      image-rendering: -webkit-crisp-edges;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    .font-pixel {
+      font-family: 'Press Start 2P', monospace;
+    }
+
+    .font-ui {
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* Animação suave de rotação de 180 graus ao virar a ampulheta */
+    .hourglass-stage {
+      transition: transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform-origin: center center;
+    }
+
+    /* Estilo retrô tátil para botões */
+    .pixel-btn {
+      box-shadow: 0 3px 0 #1f1610;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.15s ease;
+    }
+    .pixel-btn:active {
+      transform: translateY(3px);
+      box-shadow: 0 0px 0 #1f1610;
+    }
+
+    /* Remove setas padrão dos inputs numéricos para estética retrô limpa */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="number"] {
+      -moz-appearance: textfield;
+    }
+
+    /* Pulso suave ao finalizar o tempo */
+    @keyframes finishPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+    }
+    .animate-finish {
+      animation: finishPulse 1s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#FFFFFF] text-stone-800 flex flex-col items-center justify-center p-4 transition-colors duration-300 select-none" id="app-body">
+
+  <!-- Barra superior discreta para som, tema de fundo e modo minimalista -->
+  <div class="fixed top-4 right-4 z-20 flex items-center gap-2" id="top-actions">
+    <button
+      id="btn-sound-toggle"
+      title="Ativar ou desativar alarme sonoro"
+      class="font-ui text-xs font-medium px-3 py-2 rounded-lg border border-stone-200 bg-white/90 hover:bg-stone-100 text-stone-700 shadow-sm backdrop-blur-sm cursor-pointer transition"
+    >
+      Som: Ativo
+    </button>
+    <button
+      id="btn-bg-toggle"
+      title="Alternar cor de fundo"
+      class="font-ui text-xs font-medium px-3 py-2 rounded-lg border border-stone-200 bg-white/90 hover:bg-stone-100 text-stone-700 shadow-sm backdrop-blur-sm cursor-pointer transition"
+    >
+      Fundo: Branco
+    </button>
+    <button
+      id="btn-minimal-toggle"
+      title="Modo limpo (ocultar controles)"
+      class="font-ui text-xs font-medium px-3 py-2 rounded-lg border border-stone-200 bg-white/90 hover:bg-stone-100 text-stone-700 shadow-sm backdrop-blur-sm cursor-pointer transition"
+    >
+      Modo Limpo
+    </button>
+  </div>
+
+  <!-- Botão flutuante para sair do modo limpo -->
+  <button
+    id="btn-exit-minimal"
+    class="hidden fixed bottom-4 right-4 z-20 font-ui text-xs font-medium px-3 py-2 rounded-lg border border-stone-300 bg-white/85 hover:bg-white text-stone-700 shadow-md backdrop-blur-sm cursor-pointer transition"
+  >
+    Mostrar Controles
+  </button>
+
+  <!-- Container Principal -->
+  <main class="flex flex-col items-center justify-center w-full max-w-md mx-auto">
+    
+    <!-- Visor Digital de Contagem Regressiva -->
+    <div id="timer-display-box" class="mb-1 sm:mb-2 flex flex-col items-center">
+      <div
+        id="countdown-display"
+        class="font-pixel text-base sm:text-xl tracking-wider text-stone-800 px-4 py-2 rounded-lg border-2 border-[#1f1610] bg-stone-50 shadow-sm transition-colors"
+      >
+        00 : 00 : 30
+      </div>
+      <div
+        id="status-badge"
+        class="hidden mt-2 font-pixel text-[10px] px-3 py-1 rounded bg-[#AC5A2B] text-[#FFF7ED] border border-[#1f1610] animate-finish"
+      >
+        TEMPO ESGOTADO!
+      </div>
+    </div>
+
+    <!-- Palco da Ampulheta -->
+    <div id="canvas-wrapper" class="relative flex items-center justify-center my-1 sm:my-2">
+      <div id="hourglass-rotator" class="hourglass-stage flex items-center justify-center">
+        <!-- Grid exata: 49 x 73 pixels escalada com nitidez absoluta -->
+        <canvas id="hourglassCanvas" aria-label="Animação em Pixel Art de uma Ampulheta"></canvas>
+      </div>
+    </div>
+
+    <!-- Painel de Controles Retrô / Temporizador -->
+    <div id="controls-panel" class="mt-2 sm:mt-3 flex flex-col items-center gap-3 w-full max-w-sm transition-opacity duration-300">
+      
+      <!-- Barra de progresso discreta e porcentagem -->
+      <div class="w-full flex items-center gap-3 px-1">
+        <div class="flex-1 h-2.5 bg-stone-200 rounded-sm overflow-hidden border border-stone-800 p-[1px]">
+          <div id="progress-bar" class="h-full bg-[#CA723D] transition-all duration-100" style="width: 0%;"></div>
+        </div>
+        <span id="percent-label" class="font-pixel text-[10px] text-stone-700 w-10 text-right">0%</span>
+      </div>
+
+      <!-- Campos de Configuração: Dias, Horas, Minutos, Segundos -->
+      <div id="time-inputs-wrapper" class="w-full grid grid-cols-4 gap-2 px-1">
+        <div class="flex flex-col items-center">
+          <label for="input-days" class="font-pixel text-[8px] text-stone-500 mb-1 uppercase">Dias</label>
+          <input
+            id="input-days"
+            type="number"
+            min="0"
+            max="99"
+            value="0"
+            class="time-input w-full text-center font-pixel text-xs py-2 rounded-md border-2 border-[#1f1610] bg-stone-50 text-stone-900 focus:outline-none focus:bg-[#FFF7ED] disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+        </div>
+        <div class="flex flex-col items-center">
+          <label for="input-hours" class="font-pixel text-[8px] text-stone-500 mb-1 uppercase">Horas</label>
+          <input
+            id="input-hours"
+            type="number"
+            min="0"
+            max="23"
+            value="0"
+            class="time-input w-full text-center font-pixel text-xs py-2 rounded-md border-2 border-[#1f1610] bg-stone-50 text-stone-900 focus:outline-none focus:bg-[#FFF7ED] disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+        </div>
+        <div class="flex flex-col items-center">
+          <label for="input-minutes" class="font-pixel text-[8px] text-stone-500 mb-1 uppercase">Min</label>
+          <input
+            id="input-minutes"
+            type="number"
+            min="0"
+            max="59"
+            value="0"
+            class="time-input w-full text-center font-pixel text-xs py-2 rounded-md border-2 border-[#1f1610] bg-stone-50 text-stone-900 focus:outline-none focus:bg-[#FFF7ED] disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+        </div>
+        <div class="flex flex-col items-center">
+          <label for="input-seconds" class="font-pixel text-[8px] text-stone-500 mb-1 uppercase">Seg</label>
+          <input
+            id="input-seconds"
+            type="number"
+            min="0"
+            max="59"
+            value="30"
+            class="time-input w-full text-center font-pixel text-xs py-2 rounded-md border-2 border-[#1f1610] bg-stone-50 text-stone-900 focus:outline-none focus:bg-[#FFF7ED] disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+        </div>
+      </div>
+
+      <!-- Atalhos Rápidos de Tempo -->
+      <div class="flex flex-wrap items-center justify-center gap-1.5">
+        <button data-preset="10" class="preset-btn font-pixel text-[8px] px-2 py-1 rounded border border-[#1f1610] bg-stone-100 hover:bg-stone-200 text-stone-800 cursor-pointer transition disabled:opacity-50">10s</button>
+        <button data-preset="60" class="preset-btn font-pixel text-[8px] px-2 py-1 rounded border border-[#1f1610] bg-stone-100 hover:bg-stone-200 text-stone-800 cursor-pointer transition disabled:opacity-50">1m</button>
+        <button data-preset="300" class="preset-btn font-pixel text-[8px] px-2 py-1 rounded border border-[#1f1610] bg-stone-100 hover:bg-stone-200 text-stone-800 cursor-pointer transition disabled:opacity-50">5m</button>
+        <button data-preset="1500" class="preset-btn font-pixel text-[8px] px-2 py-1 rounded border border-[#1f1610] bg-stone-100 hover:bg-stone-200 text-stone-800 cursor-pointer transition disabled:opacity-50">25m</button>
+        <button data-preset="3600" class="preset-btn font-pixel text-[8px] px-2 py-1 rounded border border-[#1f1610] bg-stone-100 hover:bg-stone-200 text-stone-800 cursor-pointer transition disabled:opacity-50">1h</button>
+      </div>
+
+      <!-- Botões Principais -->
+      <div class="flex flex-wrap items-center justify-center gap-2.5 w-full mt-0.5">
+        <button
+          id="btn-play-pause"
+          class="pixel-btn font-pixel text-[10px] sm:text-xs px-3.5 py-2.5 rounded-md bg-[#AC5A2B] hover:bg-[#8E4721] text-[#FFF7ED] border-2 border-[#1f1610] cursor-pointer flex items-center gap-1.5"
+        >
+          <span id="play-icon">▶</span>
+          <span id="play-text">INICIAR</span>
+        </button>
+
+        <button
+          id="btn-flip"
+          class="pixel-btn font-pixel text-[10px] sm:text-xs px-3.5 py-2.5 rounded-md bg-[#D59449] hover:bg-[#B46F27] text-[#1f1610] border-2 border-[#1f1610] cursor-pointer flex items-center gap-1.5"
+        >
+          <span>↻</span>
+          <span>VIRAR</span>
+        </button>
+
+        <button
+          id="btn-reset"
+          class="pixel-btn font-pixel text-[10px] sm:text-xs px-3.5 py-2.5 rounded-md bg-stone-100 hover:bg-stone-200 text-stone-800 border-2 border-[#1f1610] cursor-pointer"
+        >
+          REINICIAR
+        </button>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    /**
+     * ============================================================================
+     * AMPULHETA PIXEL ART — ENGINE DE RENDERIZAÇÃO E SIMULAÇÃO DE AREIA
+     * ============================================================================
+     * Reprodução fiel da imagem de referência (proporção exata 49 x 73 pixels):
+     * - Moldura superior e inferior em madeira com sombreamento horizontal em degraus
+     * - Filete dourado interno (#D89658) e colarinho recuado (#6A3718)
+     * - Pilares laterais com divisão vertical de luz/sombra e bloco central decorativo
+     * - Bulbo de vidro com curva pixelada idêntica, interior azul-gelo (#CBE7EB)
+     *   e reflexos verticais sutis à esquerda e nas bordas inferiores
+     * - Areia dinâmica com as 4 cores exatas da referência:
+     *     1. Sombra profunda: #8B4E19
+     *     2. Âmbar médio:     #B46F27
+     *     3. Dourado quente:   #D59449
+     *     4. Brilho claro:     #F1BE82
+     */
+
+    // Dimensões lógicas da grade de pixel art (proporção fiel à referência)
+    const GRID_W = 49;
+    const GRID_H = 73;
+
+    // Geometria exata do interior do vidro (x1, x2) para cada linha Y (9 a 63)
+    const GLASS_INNER_SPAN = {
+      9: [11, 37], 10: [11, 37], 11: [11, 37], 12: [11, 37], 13: [11, 37],
+      14: [11, 37], 15: [11, 37], 16: [11, 37], 17: [11, 37], 18: [11, 37],
+      19: [12, 36], 20: [12, 36], 21: [12, 36],
+      22: [13, 35], 23: [13, 35],
+      24: [14, 34], 25: [15, 33], 26: [16, 32], 27: [17, 31],
+      28: [18, 30], 29: [19, 29], 30: [20, 28], 31: [21, 27],
+      32: [22, 26], 33: [23, 25], 34: [23, 25],
+      35: [23, 25], 36: [23, 25], 37: [23, 25], 38: [23, 25],
+      39: [22, 26], 40: [21, 27], 41: [20, 28], 42: [19, 29],
+      43: [18, 30], 44: [17, 31], 45: [16, 32], 46: [15, 33],
+      47: [14, 34], 48: [13, 35], 49: [13, 35],
+      50: [12, 36], 51: [12, 36], 52: [12, 36],
+      53: [11, 37], 54: [11, 37], 55: [11, 37], 56: [11, 37], 57: [11, 37],
+      58: [11, 37], 59: [11, 37], 60: [11, 37], 61: [11, 37], 62: [11, 37],
+      63: [11, 37]
+    };
+
+    // Paleta exata extraída da imagem de referência
+    const PALETTE = {
+      BLACK:        '#000000',
+      // Madeira (tampas horizontais)
+      WOOD_DARK:    '#6A3718', // Colarinho e extremidade esquerda escura
+      WOOD_RED_DK:  '#8E4721', // Faixa esquerda da viga
+      WOOD_RED_MD:  '#AC5A2B', // Faixa centro-esquerda da viga
+      WOOD_TAN_MD:  '#CA723D', // Faixa direita principal da viga
+      WOOD_TRIM:    '#D89658', // Filete dourado fino
+      // Pilares laterais
+      PILLAR_SHAD:  '#5E2D12', // Lado esquerdo sombreado do pilar
+      PILLAR_LIT:   '#8D4B24', // Lado direito iluminado do pilar
+      KNOT_SHAD:    '#6B3719', // Sombra do bloco central do pilar
+      KNOT_LIT:     '#874723', // Luz do bloco central do pilar
+      // Vidro
+      GLASS_BASE:   '#CBE7EB', // Azul gelo principal do interior
+      GLASS_HIGH:   '#E2F3F5', // Reflexo claro interno à direita
+      GLASS_SHAD_1: '#9CB3BE', // Reflexo azul-ardósia no canto superior esquerdo
+      GLASS_SHAD_2: '#B4D3D9', // Contorno de sombra suave nas curvas do vidro
+      // Areia (4 tons fiéis)
+      SAND_1:       '#8B4E19', // Sombra profunda (esquerda)
+      SAND_2:       '#B46F27', // Âmbar médio (centro-esquerda)
+      SAND_3:       '#D59449', // Areia dourada (centro-direita / fluxo)
+      SAND_4:       '#F1BE82', // Realce iluminado (direita)
+    };
+
+    // Referências do DOM
+    const canvas = document.getElementById('hourglassCanvas');
+    const ctx = canvas.getContext('2d');
+    const rotator = document.getElementById('hourglass-rotator');
+    const progressBar = document.getElementById('progress-bar');
+    const percentLabel = document.getElementById('percent-label');
+    const countdownDisplay = document.getElementById('countdown-display');
+    const statusBadge = document.getElementById('status-badge');
+    const btnPlayPause = document.getElementById('btn-play-pause');
+    const playIcon = document.getElementById('play-icon');
+    const playText = document.getElementById('play-text');
+    const btnFlip = document.getElementById('btn-flip');
+    const btnReset = document.getElementById('btn-reset');
+    const btnSoundToggle = document.getElementById('btn-sound-toggle');
+    const btnBgToggle = document.getElementById('btn-bg-toggle');
+    const btnMinimalToggle = document.getElementById('btn-minimal-toggle');
+    const btnExitMinimal = document.getElementById('btn-exit-minimal');
+    const controlsPanel = document.getElementById('controls-panel');
+    const topActions = document.getElementById('top-actions');
+    const timerDisplayBox = document.getElementById('timer-display-box');
+    const appBody = document.getElementById('app-body');
+
+    const inputDays = document.getElementById('input-days');
+    const inputHours = document.getElementById('input-hours');
+    const inputMinutes = document.getElementById('input-minutes');
+    const inputSeconds = document.getElementById('input-seconds');
+    const timeInputs = document.querySelectorAll('.time-input');
+    const presetBtns = document.querySelectorAll('.preset-btn');
+
+    // Estado da animação e do temporizador sincronizado
+    let state = {
+      isPlaying: false,
+      totalDurationMs: 30000,   // Duração total estipulada (ms)
+      remainingMs: 30000,       // Tempo restante exato (ms)
+      endTimestamp: null,       // Timestamp absoluto do término quando rodando
+      progress: 0.0,            // 0.0 (areia toda em cima) até 1.0 (areia toda embaixo)
+      tickCount: 0,
+      isFlipping: false,
+      rotationDeg: 0,
+      bgMode: 0,                // 0: Branco puro, 1: Creme suave, 2: Escuro neutro
+      soundEnabled: true,
+    };
+
+    /**
+     * Toca um alarme sonoro retrô em 8-bit via Web Audio API ao finalizar o tempo
+     */
+    function playCompletionAlarm() {
+      if (!state.soundEnabled) return;
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const audioCtx = new AudioCtx();
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // Dó5, Mi5, Sol5, Dó6
+
+        notes.forEach((freq, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime + idx * 0.14);
+
+          gain.gain.setValueAtTime(0.08, audioCtx.currentTime + idx * 0.14);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + idx * 0.14 + 0.25);
+
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc.start(audioCtx.currentTime + idx * 0.14);
+          osc.stop(audioCtx.currentTime + idx * 0.14 + 0.26);
+        });
+      } catch (e) {
+        console.warn('Não foi possível reproduzir o som do alarme:', e);
+      }
+    }
+
+    /**
+     * Renderiza um único frame completo na grade lógica
+     */
+    function renderFrame() {
+      ctx.clearRect(0, 0, GRID_W, GRID_H);
+      drawGlassBulb();
+      drawAnimatedSand();
+      drawWoodenFrame();
+      updateProgressUI();
+    }
+
+    /**
+     * Desenha um único pixel na grade lógica 49x73
+     */
+    function setPixel(x, y, color) {
+      if (x < 0 || x >= GRID_W || y < 0 || y >= GRID_H) return;
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, 1, 1);
+    }
+
+    /**
+     * Desenha um retângulo preenchido na grade lógica
+     */
+    function fillRectGrid(x, y, w, h, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, w, h);
+    }
+
+    /**
+     * Retorna a cor da madeira horizontal (degrade escalonado da esquerda para direita)
+     */
+    function getWoodenBeamColor(x) {
+      if (x <= 6)  return PALETTE.WOOD_DARK;
+      if (x <= 16) return PALETTE.WOOD_RED_DK;
+      if (x <= 26) return PALETTE.WOOD_RED_MD;
+      return PALETTE.WOOD_TAN_MD;
+    }
+
+    /**
+     * Retorna a cor do colarinho de madeira recuado que segura o vidro
+     */
+    function getCollarColor(x) {
+      if (x <= 12) return PALETTE.WOOD_DARK;
+      if (x <= 24) return PALETTE.WOOD_RED_DK;
+      if (x <= 35) return PALETTE.WOOD_RED_MD;
+      return PALETTE.WOOD_DARK;
+    }
+
+    /**
+     * Renderiza toda a estrutura fixa de madeira (tampa superior, tampa inferior e pilares laterais)
+     */
+    function drawWoodenFrame() {
+      // --- 1. TAMPA SUPERIOR (Y: 0 a 8) ---
+      // Contorno preto superior e laterais
+      fillRectGrid(0, 0, GRID_W, 1, PALETTE.BLACK);
+      fillRectGrid(0, 1, 1, 4, PALETTE.BLACK);
+      fillRectGrid(GRID_W - 1, 1, 1, 4, PALETTE.BLACK);
+
+      // Viga principal superior (Y: 1 a 3) com sombreamento horizontal fiel
+      for (let x = 1; x <= GRID_W - 2; x++) {
+        const beamCol = getWoodenBeamColor(x);
+        fillRectGrid(x, 1, 1, 3, beamCol);
+      }
+
+      // Filete dourado fino abaixo da viga superior (Y: 4)
+      fillRectGrid(1, 4, GRID_W - 2, 1, PALETTE.WOOD_TRIM);
+
+      // Linha preta abaixo da viga principal (Y: 5)
+      fillRectGrid(1, 5, GRID_W - 2, 1, PALETTE.BLACK);
+
+      // Bases superiores dos pilares laterais (Y: 6 a 7)
+      // Pilar esquerdo base
+      fillRectGrid(2, 6, 1, 2, PALETTE.BLACK);
+      fillRectGrid(6, 6, 1, 2, PALETTE.BLACK);
+      fillRectGrid(3, 6, 3, 1, PALETTE.WOOD_TAN_MD);
+      fillRectGrid(3, 7, 3, 1, PALETTE.BLACK);
+
+      // Pilar direito base
+      fillRectGrid(42, 6, 1, 2, PALETTE.BLACK);
+      fillRectGrid(46, 6, 1, 2, PALETTE.BLACK);
+      fillRectGrid(43, 6, 3, 1, PALETTE.WOOD_TAN_MD);
+      fillRectGrid(43, 7, 3, 1, PALETTE.BLACK);
+
+      // Colarinho superior do vidro (Y: 6 a 8)
+      fillRectGrid(8, 6, 1, 2, PALETTE.BLACK);
+      fillRectGrid(40, 6, 1, 2, PALETTE.BLACK);
+      for (let x = 9; x <= 39; x++) {
+        fillRectGrid(x, 6, 1, 2, getCollarColor(x));
+      }
+      fillRectGrid(9, 8, 31, 1, PALETTE.BLACK);
+
+      // --- 2. TAMPA INFERIOR (Y: 64 a 72) ---
+      // Colarinho inferior do vidro (Y: 64 a 66)
+      fillRectGrid(9, 64, 31, 1, PALETTE.BLACK);
+      fillRectGrid(8, 65, 1, 2, PALETTE.BLACK);
+      fillRectGrid(40, 65, 1, 2, PALETTE.BLACK);
+      for (let x = 9; x <= 39; x++) {
+        fillRectGrid(x, 65, 1, 2, getCollarColor(x));
+      }
+
+      // Bases inferiores dos pilares laterais (Y: 65 a 66)
+      // Pilar esquerdo base
+      fillRectGrid(2, 65, 1, 2, PALETTE.BLACK);
+      fillRectGrid(6, 65, 1, 2, PALETTE.BLACK);
+      fillRectGrid(3, 65, 3, 1, PALETTE.BLACK);
+      fillRectGrid(3, 66, 3, 1, PALETTE.WOOD_TAN_MD);
+
+      // Pilar direito base
+      fillRectGrid(42, 65, 1, 2, PALETTE.BLACK);
+      fillRectGrid(46, 65, 1, 2, PALETTE.BLACK);
+      fillRectGrid(43, 65, 3, 1, PALETTE.BLACK);
+      fillRectGrid(43, 66, 3, 1, PALETTE.WOOD_TAN_MD);
+
+      // Linha preta acima da viga inferior (Y: 67)
+      fillRectGrid(1, 67, GRID_W - 2, 1, PALETTE.BLACK);
+
+      // Filete dourado fino acima da viga inferior (Y: 68)
+      fillRectGrid(1, 68, GRID_W - 2, 1, PALETTE.WOOD_TRIM);
+
+      // Viga principal inferior (Y: 69 a 71)
+      for (let x = 1; x <= GRID_W - 2; x++) {
+        const beamCol = getWoodenBeamColor(x);
+        fillRectGrid(x, 69, 1, 3, beamCol);
+      }
+
+      // Contorno preto inferior e laterais
+      fillRectGrid(0, 68, 1, 4, PALETTE.BLACK);
+      fillRectGrid(GRID_W - 1, 68, 1, 4, PALETTE.BLACK);
+      fillRectGrid(0, 72, GRID_W, 1, PALETTE.BLACK);
+
+      // --- 3. PILARES VERTICAIS LATERAIS (Y: 8 a 64) ---
+      drawPillar(3, 4);   // Pilar esquerdo (interno X: 4 e 5)
+      drawPillar(42, 43); // Pilar direito (interno X: 43 e 44)
+    }
+
+    /**
+     * Desenha um pilar lateral completo com sua haste vertical e bloco central decorativo
+     */
+    function drawPillar(borderLeftX, innerLeftX) {
+      const innerRightX = innerLeftX + 1;
+      const borderRightX = innerLeftX + 2;
+
+      for (let y = 8; y <= 64; y++) {
+        // Bloco decorativo central (Y: 33 a 39)
+        if (y === 33 || y === 39) {
+          fillRectGrid(borderLeftX - 1, y, 6, 1, PALETTE.BLACK);
+        } else if (y >= 34 && y <= 38) {
+          setPixel(borderLeftX - 1, y, PALETTE.BLACK);
+          setPixel(borderLeftX, y, PALETTE.KNOT_SHAD);
+          setPixel(innerLeftX, y, PALETTE.KNOT_SHAD);
+          setPixel(innerRightX, y, PALETTE.KNOT_LIT);
+          setPixel(borderRightX, y, PALETTE.KNOT_LIT);
+          setPixel(borderRightX + 1, y, PALETTE.BLACK);
+        } else {
+          // Haste vertical normal
+          setPixel(borderLeftX, y, PALETTE.BLACK);
+          setPixel(innerLeftX, y, PALETTE.PILLAR_SHAD);
+          setPixel(innerRightX, y, PALETTE.PILLAR_LIT);
+          setPixel(borderRightX, y, PALETTE.BLACK);
+        }
+      }
+    }
+
+    /**
+     * Renderiza o vidro do bulbo (interior azul-gelo, reflexos característicos e contorno preto)
+     */
+    function drawGlassBulb() {
+      // 1. Preenchimento base do vidro e reflexos
+      for (let y = 9; y <= 63; y++) {
+        const [x1, x2] = GLASS_INNER_SPAN[y];
+
+        for (let x = x1; x <= x2; x++) {
+          let color = PALETTE.GLASS_BASE;
+
+          // Reflexo de sombra azul-ardósia no canto superior esquerdo (fiel à referência)
+          if (y >= 9 && y <= 23 && x >= x1 + 2 && x <= x1 + 6) {
+            if (y <= 16 || x <= x1 + 5) {
+              color = PALETTE.GLASS_SHAD_1;
+            }
+          }
+
+          // Reflexo de brilho vertical sutil na parte superior direita
+          if (y >= 10 && y <= 24 && x >= 22 && x <= 34) {
+            if (!(y === 10 && x === 22)) {
+              color = PALETTE.GLASS_HIGH;
+            }
+          }
+
+          // Contorno interno suave nas curvas e laterais inferiores do vidro
+          if (y >= 40 && y <= 63) {
+            if (x === x1 || x === x1 + 1 || x === x2 || x === x2 - 1) {
+              color = PALETTE.GLASS_SHAD_2;
+            }
+          }
+
+          setPixel(x, y, color);
+        }
+      }
+
+      // 2. Contorno preto pixelado exato do vidro
+      for (let y = 9; y <= 63; y++) {
+        const [x1, x2] = GLASS_INNER_SPAN[y];
+        setPixel(x1 - 1, y, PALETTE.BLACK);
+        setPixel(x2 + 1, y, PALETTE.BLACK);
+
+        // Conecta degraus diagonais para garantir contorno contínuo sem falhas
+        if (y > 9) {
+          const [prevX1, prevX2] = GLASS_INNER_SPAN[y - 1];
+          if (x1 > prevX1) {
+            for (let bx = prevX1; bx < x1; bx++) setPixel(bx - 1, y, PALETTE.BLACK);
+          } else if (x1 < prevX1) {
+            for (let bx = x1; bx < prevX1; bx++) setPixel(bx - 1, y - 1, PALETTE.BLACK);
+          }
+
+          if (x2 < prevX2) {
+            for (let bx = x2 + 1; bx <= prevX2; bx++) setPixel(bx + 1, y, PALETTE.BLACK);
+          } else if (x2 > prevX2) {
+            for (let bx = prevX2 + 1; bx <= x2; bx++) setPixel(bx + 1, y - 1, PALETTE.BLACK);
+          }
+        }
+      }
+    }
+
+    /**
+     * Renderiza a areia animada dentro do bulbo superior, o filete caindo no gargalo
+     * e o monte cônico acumulado no bulbo inferior, mantendo o sombreamento 3D de 4 cores.
+     */
+    function drawAnimatedSand() {
+      const p = Math.max(0, Math.min(1, state.progress));
+      const centerX = 24;
+
+      // ========================================================================
+      // 1. AREIA NO BULBO SUPERIOR (Esvazia de cima para baixo com funil central)
+      // ========================================================================
+      const topRemainingRatio = 1 - p;
+
+      if (topRemainingRatio > 0.002) {
+        // Nível Y base da superfície da areia superior (varia de Y=14 cheio até Y=35 vazio)
+        const baseTopY = 14 + p * 21;
+
+        for (let y = 9; y <= 34; y++) {
+          const [x1, x2] = GLASS_INNER_SPAN[y];
+          for (let x = x1; x <= x2; x++) {
+            const distFromCenter = Math.abs(x - centerX);
+
+            // Forma da superfície superior: leve montículo inicial que vira um funil
+            // no centro conforme a areia escoa para o gargalo.
+            const funnelDepth = Math.min(3.5, p * 5.5) * Math.max(0, 1 - distFromCenter / 8);
+            // Pequena assimetria artística como na referência (ombro esquerdo levemente mais alto)
+            const asymmetry = x < centerX ? -0.45 : 0.35;
+            const surfaceY = baseTopY + funnelDepth + asymmetry;
+
+            if (y >= Math.floor(surfaceY)) {
+              // Determina a cor entre os 4 tons de areia conforme posição e sombra
+              let sandColor = PALETTE.SAND_3;
+
+              // Divisão diagonal/curva de sombra à esquerda e luz à direita (fiel à imagem)
+              const shadowBoundary = centerX - 1.5 + (y - baseTopY) * 0.35;
+
+              if (x <= x1 + 1 || (x < shadowBoundary - 3 && y < baseTopY + 6)) {
+                sandColor = PALETTE.SAND_1; // Sombra profunda à esquerda
+              } else if (x < shadowBoundary) {
+                sandColor = PALETTE.SAND_2; // Âmbar médio
+              } else if (x >= x2 - 1 || (x > shadowBoundary + 4 && y < baseTopY + 7)) {
+                sandColor = PALETTE.SAND_4; // Realce claro à direita
+              } else {
+                sandColor = PALETTE.SAND_3; // Dourado quente central
+              }
+
+              // Sombra sutil no fundo do funil
+              if (distFromCenter <= 1 && y === Math.floor(surfaceY) && p > 0.15) {
+                sandColor = PALETTE.SAND_2;
+              }
+
+              setPixel(x, y, sandColor);
+            }
+          }
+        }
+      }
+
+      // ========================================================================
+      // 2. MONTE DE AREIA NO BULBO INFERIOR (Cresce de baixo para cima em cone)
+      // ========================================================================
+      // Altura máxima do pico da pirâmide de areia no bulbo inferior
+      const maxPeakY = 44; // Quando cheio (100%), o pico chega próximo ao gargalo
+      const minBaseY = 64; // Quando vazio (0%), fica abaixo do fundo
+
+      // Pico atual sobe suavemente conforme p aumenta
+      // Em p = 0.48 (estado da referência), o pico fica exatamente em Y = 45..46
+      const easedBottomFill = Math.pow(p, 0.78);
+      const currentPeakY = minBaseY - easedBottomFill * (minBaseY - maxPeakY);
+
+      if (p > 0.005) {
+        // Inclinação das paredes da pirâmide de areia
+        const slope = 0.78;
+
+        for (let y = 39; y <= 63; y++) {
+          const [x1, x2] = GLASS_INNER_SPAN[y];
+
+          // Largura permitida da pirâmide nesta linha Y
+          const dyFromPeak = y - currentPeakY;
+          if (dyFromPeak < 0) continue;
+
+          const halfWidth = Math.floor(dyFromPeak * slope);
+          const pileLeft = Math.max(x1, centerX - halfWidth);
+          const pileRight = Math.min(x2, centerX + halfWidth);
+
+          for (let x = pileLeft; x <= pileRight; x++) {
+            let sandColor = PALETTE.SAND_3;
+
+            // Sombreamento 3D fiel ao cone da imagem de referência:
+            // - Encosta esquerda em âmbar médio (#B46F27) com borda externa escura (#8B4E19)
+            // - Crista central em dourado quente (#D59449)
+            // - Encosta direita iluminada em tom claro (#F1BE82)
+            if (x === pileLeft && x > x1) {
+              sandColor = PALETTE.SAND_1;
+            } else if (x < centerX) {
+              sandColor = PALETTE.SAND_2;
+            } else if (x === centerX) {
+              sandColor = PALETTE.SAND_3;
+            } else if (x > centerX && x < centerX + 2) {
+              sandColor = PALETTE.SAND_3;
+            } else {
+              sandColor = PALETTE.SAND_4;
+            }
+
+            // Borda inferior rente ao vidro ganha um toque de âmbar para ancoragem
+            if (y === 63 && x <= centerX) {
+              sandColor = PALETTE.SAND_2;
+            }
+
+            setPixel(x, y, sandColor);
+          }
+        }
+      }
+
+      // ========================================================================
+      // 3. FILETE DE AREIA CAINDO PELO GARGALO (Animado frame a frame)
+      // ========================================================================
+      // O fio só cai enquanto o temporizador estiver rodando e houver areia restante
+      const isFlowing = state.isPlaying && p > 0.0005 && p < 0.998;
+      if (isFlowing) {
+        const streamTopY = 34;
+        const streamBottomY = Math.min(63, Math.max(38, Math.ceil(currentPeakY)));
+        const animPhase = Math.floor(state.tickCount / 4);
+
+        for (let y = streamTopY; y <= streamBottomY; y++) {
+          // Alternância sutil de brilho no filete vertical para simular grãos em queda
+          const grainPattern = (y + animPhase) % 5;
+          const streamColor = grainPattern === 0 ? PALETTE.SAND_4 : PALETTE.SAND_3;
+
+          // Filete principal no centro (X = 24)
+          setPixel(centerX, y, streamColor);
+
+          // Pequenos grãos laterais ocasionais no gargalo e no impacto com o monte
+          if (y >= 35 && y <= 37 && (y + animPhase) % 3 === 0) {
+            setPixel(centerX - 1, y, PALETTE.SAND_3);
+          }
+          if (y === streamBottomY && animPhase % 2 === 0) {
+            setPixel(centerX - 1, y, PALETTE.SAND_2);
+            setPixel(centerX + 1, y, PALETTE.SAND_4);
+          }
+        }
+      }
+    }
+
+    /**
+     * Lê os inputs de Dias, Horas, Minutos e Segundos, sanitiza os limites
+     * e retorna a duração total em milissegundos.
+     */
+    function readConfiguredDurationMs() {
+      const d = Math.max(0, Math.min(99, parseInt(inputDays.value, 10) || 0));
+      const h = Math.max(0, Math.min(23, parseInt(inputHours.value, 10) || 0));
+      const m = Math.max(0, Math.min(59, parseInt(inputMinutes.value, 10) || 0));
+      const s = Math.max(0, Math.min(59, parseInt(inputSeconds.value, 10) || 0));
+
+      inputDays.value = d;
+      inputHours.value = h;
+      inputMinutes.value = m;
+      inputSeconds.value = s;
+
+      return ((d * 86400) + (h * 3600) + (m * 60) + s) * 1000;
+    }
+
+    /**
+     * Formata milissegundos restantes para DD : HH : MM : SS (ou HH : MM : SS se dias == 0)
+     */
+    function formatRemainingTime(ms) {
+      const totalSeconds = Math.ceil(Math.max(0, ms) / 1000);
+      const days = Math.floor(totalSeconds / 86400);
+      const hours = Math.floor((totalSeconds % 86400) / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      const pad = (n) => String(n).padStart(2, '0');
+      if (days > 0) {
+        return `${pad(days)}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+      }
+      return `${pad(hours)} : ${pad(minutes)} : ${pad(seconds)}`;
+    }
+
+    /**
+     * Atualiza a barra de progresso, a porcentagem e o visor digital
+     */
+    function updateProgressUI() {
+      const pct = Math.round(state.progress * 100);
+      progressBar.style.width = `${pct}%`;
+      percentLabel.textContent = `${pct}%`;
+      countdownDisplay.textContent = formatRemainingTime(state.remainingMs);
+    }
+
+    /**
+     * Bloqueia ou libera os campos numéricos enquanto o temporizador está rodando
+     */
+    function setInputsLocked(locked) {
+      timeInputs.forEach((inp) => {
+        inp.disabled = locked;
+      });
+      presetBtns.forEach((btn) => {
+        btn.disabled = locked;
+      });
+    }
+
+    /**
+     * Ajusta o tamanho visual do canvas mantendo a proporção exata 49:73
+     * e garantindo múltiplos inteiros sempre que possível para nitidez máxima.
+     */
+    function resizeCanvas() {
+      const maxAvailableH = Math.min(window.innerHeight * 0.52, 460);
+      const maxAvailableW = Math.min(window.innerWidth * 0.85, 340);
+
+      const scaleByH = Math.floor(maxAvailableH / GRID_H);
+      const scaleByW = Math.floor(maxAvailableW / GRID_W);
+      const pixelScale = Math.max(3, Math.min(scaleByH, scaleByW));
+
+      canvas.width = GRID_W;
+      canvas.height = GRID_H;
+      canvas.style.width = `${GRID_W * pixelScale}px`;
+      canvas.style.height = `${GRID_H * pixelScale}px`;
+
+      ctx.imageSmoothingEnabled = false;
+      renderFrame();
+    }
+
+    /**
+     * Loop principal de animação sincronizado com o relógio real (Date.now)
+     */
+    function animationLoop() {
+      if (state.isPlaying && !state.isFlipping && state.endTimestamp !== null) {
+        const now = Date.now();
+        const remaining = Math.max(0, state.endTimestamp - now);
+        state.remainingMs = remaining;
+
+        if (state.totalDurationMs > 0) {
+          state.progress = Math.min(1, Math.max(0, 1 - (remaining / state.totalDurationMs)));
+        } else {
+          state.progress = 1;
+        }
+
+        state.tickCount += 1;
+        renderFrame();
+
+        // Quando o tempo estipulado chega a zero
+        if (remaining <= 0) {
+          state.remainingMs = 0;
+          state.progress = 1;
+          state.endTimestamp = null;
+          setPlayingState(false);
+          setInputsLocked(false);
+          statusBadge.classList.remove('hidden');
+          renderFrame();
+          playCompletionAlarm();
+        }
+      }
+
+      requestAnimationFrame(animationLoop);
+    }
+
+    /**
+     * Alterna entre reproduzir e pausar
+     */
+    function setPlayingState(playing) {
+      state.isPlaying = playing;
+      if (playing) {
+        playIcon.textContent = '❚❚';
+        playText.textContent = 'PAUSAR';
+        statusBadge.classList.add('hidden');
+        setInputsLocked(true);
+      } else {
+        playIcon.textContent = '▶';
+        playText.textContent = 'INICIAR';
+      }
+    }
+
+    /**
+     * Aplica o tempo digitado nos campos e reinicia a ampulheta cheia no topo
+     */
+    function applyConfiguredTime() {
+      const configuredMs = readConfiguredDurationMs();
+      state.totalDurationMs = configuredMs;
+      state.remainingMs = configuredMs;
+      state.progress = configuredMs === 0 ? 1 : 0;
+      state.endTimestamp = null;
+      statusBadge.classList.add('hidden');
+      setPlayingState(false);
+      setInputsLocked(false);
+      renderFrame();
+    }
+
+    /**
+     * Vira a ampulheta em 180 graus com animação física suave e reinicia/inverte o ciclo
+     */
+    function flipHourglass() {
+      if (state.isFlipping) return;
+      state.isFlipping = true;
+      statusBadge.classList.add('hidden');
+
+      state.rotationDeg += 180;
+      rotator.style.transform = `rotate(${state.rotationDeg}deg)`;
+
+      setTimeout(() => {
+        // Se estava concluído ou no início, reinicia com o tempo total configurado
+        if (state.remainingMs <= 0 || state.progress >= 0.99) {
+          const configuredMs = readConfiguredDurationMs();
+          if (configuredMs > 0) {
+            state.totalDurationMs = configuredMs;
+            state.remainingMs = configuredMs;
+            state.progress = 0;
+          }
+        } else {
+          // Inverte a areia já caída para voltar a escoar
+          const elapsed = state.totalDurationMs - state.remainingMs;
+          if (elapsed > 0) {
+            state.remainingMs = elapsed;
+            state.progress = Math.max(0, Math.min(1, 1 - (state.remainingMs / state.totalDurationMs)));
+          }
+        }
+
+        rotator.style.transition = 'none';
+        state.rotationDeg = 0;
+        rotator.style.transform = 'rotate(0deg)';
+
+        if (state.remainingMs > 0) {
+          state.endTimestamp = Date.now() + state.remainingMs;
+          setPlayingState(true);
+        }
+
+        renderFrame();
+
+        void rotator.offsetWidth;
+        rotator.style.transition = '';
+        state.isFlipping = false;
+      }, 650);
+    }
+
+    // --- EVENT LISTENERS DOS CONTROLES ---
+
+    btnPlayPause.addEventListener('click', () => {
+      if (state.isPlaying) {
+        // Pausar: congela o tempo restante exato
+        if (state.endTimestamp !== null) {
+          state.remainingMs = Math.max(0, state.endTimestamp - Date.now());
+        }
+        state.endTimestamp = null;
+        setPlayingState(false);
+        setInputsLocked(false);
+        renderFrame();
+      } else {
+        // Iniciar ou retomar
+        if (state.remainingMs <= 0) {
+          const configuredMs = readConfiguredDurationMs();
+          if (configuredMs <= 0) return; // Não inicia se tudo estiver zerado
+          state.totalDurationMs = configuredMs;
+          state.remainingMs = configuredMs;
+          state.progress = 0;
+        }
+        state.endTimestamp = Date.now() + state.remainingMs;
+        setPlayingState(true);
+        renderFrame();
+      }
+    });
+
+    btnFlip.addEventListener('click', flipHourglass);
+
+    btnReset.addEventListener('click', () => {
+      applyConfiguredTime();
+    });
+
+    // Atualiza o temporizador em tempo real quando o usuário altera os campos
+    timeInputs.forEach((inp) => {
+      inp.addEventListener('change', () => {
+        if (!state.isPlaying) {
+          applyConfiguredTime();
+        }
+      });
+      inp.addEventListener('input', () => {
+        if (!state.isPlaying) {
+          const d = Math.max(0, Math.min(99, parseInt(inputDays.value, 10) || 0));
+          const h = Math.max(0, Math.min(23, parseInt(inputHours.value, 10) || 0));
+          const m = Math.max(0, Math.min(59, parseInt(inputMinutes.value, 10) || 0));
+          const s = Math.max(0, Math.min(59, parseInt(inputSeconds.value, 10) || 0));
+          const ms = ((d * 86400) + (h * 3600) + (m * 60) + s) * 1000;
+
+          state.totalDurationMs = ms;
+          state.remainingMs = ms;
+          state.progress = ms === 0 ? 1 : 0;
+          statusBadge.classList.add('hidden');
+          renderFrame();
+        }
+      });
+    });
+
+    // Predefinições rápidas (10s, 1m, 5m, 25m, 1h)
+    presetBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (state.isPlaying) return;
+        const totalSec = Number(btn.dataset.preset);
+        const days = Math.floor(totalSec / 86400);
+        const hours = Math.floor((totalSec % 86400) / 3600);
+        const minutes = Math.floor((totalSec % 3600) / 60);
+        const seconds = totalSec % 60;
+
+        inputDays.value = days;
+        inputHours.value = hours;
+        inputMinutes.value = minutes;
+        inputSeconds.value = seconds;
+        applyConfiguredTime();
+      });
+    });
+
+    // Alternar som do alarme
+    btnSoundToggle.addEventListener('click', () => {
+      state.soundEnabled = !state.soundEnabled;
+      btnSoundToggle.textContent = state.soundEnabled ? 'Som: Ativo' : 'Som: Mudo';
+    });
+
+    // Alternar cor de fundo (Branco puro como na referência / Creme / Escuro)
+    const BG_MODES = [
+      { label: 'Fundo: Branco', bgClass: 'bg-[#FFFFFF]', textClass: 'text-stone-800' },
+      { label: 'Fundo: Creme',  bgClass: 'bg-[#F5EFE6]', textClass: 'text-stone-800' },
+      { label: 'Fundo: Escuro', bgClass: 'bg-[#181615]', textClass: 'text-stone-200' },
+    ];
+
+    btnBgToggle.addEventListener('click', () => {
+      const current = BG_MODES[state.bgMode];
+      appBody.classList.remove(current.bgClass, current.textClass);
+
+      state.bgMode = (state.bgMode + 1) % BG_MODES.length;
+      const next = BG_MODES[state.bgMode];
+
+      appBody.classList.add(next.bgClass, next.textClass);
+      btnBgToggle.textContent = next.label;
+
+      if (state.bgMode === 2) {
+        percentLabel.classList.replace('text-stone-700', 'text-stone-300');
+      } else {
+        percentLabel.classList.replace('text-stone-300', 'text-stone-700');
+      }
+    });
+
+    // Modo Limpo (para visualização pura igual à imagem)
+    btnMinimalToggle.addEventListener('click', () => {
+      controlsPanel.classList.add('hidden');
+      topActions.classList.add('hidden');
+      timerDisplayBox.classList.add('hidden');
+      btnExitMinimal.classList.remove('hidden');
+    });
+
+    btnExitMinimal.addEventListener('click', () => {
+      controlsPanel.classList.remove('hidden');
+      topActions.classList.remove('hidden');
+      timerDisplayBox.classList.remove('hidden');
+      btnExitMinimal.classList.add('hidden');
+    });
+
+    // Clique direto na ampulheta também permite pausar/retomar rapidamente
+    canvas.addEventListener('click', () => {
+      btnPlayPause.click();
+    });
+
+    window.addEventListener('resize', resizeCanvas);
+
+    // Inicialização ao carregar a página
+    window.onload = () => {
+      applyConfiguredTime();
+      resizeCanvas();
+      requestAnimationFrame(animationLoop);
+    };
+  </script>
+</body>
+</html>
